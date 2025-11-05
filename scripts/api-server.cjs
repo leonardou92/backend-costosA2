@@ -91,7 +91,13 @@ app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
 // Ruta para documentación Swagger
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Ruta para obtener la especificación Swagger JSON
+app.get('/api/docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
 
 // Centralized Neon client (serverless-friendly). See scripts/neon-client.fixed.cjs
 const { getPool, poolClient, testConnection } = require('./neon-client.fixed.cjs');
@@ -326,48 +332,6 @@ app.post('/api/login', (req, res) => {
  *                 message:
  *                   type: string
  */
-app.get('/api/inventario/reporte', requireAuth, async (req, res) => {
-  if (!DATABASE_URL) return res.status(500).json({ ok: false, error: 'no_database_url' });
-  try {
-    const pool = getPool();
-    const query = `
-      SELECT * FROM inventario_costos 
-      WHERE EXTRACT(YEAR FROM fecha_sistema) = 2025 
-      AND EXTRACT(MONTH FROM fecha_sistema) = 10 
-      ORDER BY fecha_sistema
-    `;
-    const result = await pool.query(query);
-    return res.json({ 
-      ok: true, 
-      reporte: 'inventario_octubre_2025', 
-      total_registros: result.rows.length, 
-      data: result.rows,
-      usuario: req.session.username 
-    });
-  } catch (err) {
-    console.error('inventario reporte error', err && err.message ? err.message : err);
-    return res.status(500).json({ ok: false, error: 'db_query_failed', message: String(err && err.message ? err.message : 'query_error') });
-  }
-});
-
-app.get('/api/health', (req, res) => {
-  res.json({ ok: true, healthy: true, uptime: process.uptime(), env_database: !!DATABASE_URL, now: Date.now() });
-});
-
-app.get('/api/ping', (req, res) => {
-  res.json({ ok: true, uptime: process.uptime(), env_database: !!DATABASE_URL });
-});
-
-app.post('/api/login', (req, res) => {
-  const { username, password } = req.body;
-  // Para demo: usuario fijo
-  if (username === 'admin' && password === 'admin') {
-    const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '24h' });
-    return res.json({ ok: true, token, message: 'Login exitoso' });
-  }
-  return res.status(401).json({ ok: false, error: 'invalid_credentials', message: 'Usuario o contraseña incorrectos' });
-});
-
 app.get('/api/inventario/reporte', requireAuth, async (req, res) => {
   if (!DATABASE_URL) return res.status(500).json({ ok: false, error: 'no_database_url' });
   try {

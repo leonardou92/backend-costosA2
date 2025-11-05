@@ -69,8 +69,8 @@ docker run --rm -p 3001:3001 --env-file .env backend-costos-a2:latest
 El servidor corre en `http://localhost:3001` por defecto.
 
 ### Documentación Interactiva
-- **Swagger UI**: [https://backend-costos-a2.vercel.app/api-docs](https://backend-costos-a2.vercel.app/api-docs)
-- **Local**: `http://localhost:3001/api-docs`
+- **Swagger UI**: [https://backend-costos-a2.vercel.app/api/docs](https://backend-costos-a2.vercel.app/api/docs)
+- **Local**: `http://localhost:3001/api/docs`
 
 ### Endpoints Disponibles
 
