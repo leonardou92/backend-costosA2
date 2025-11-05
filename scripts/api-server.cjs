@@ -58,7 +58,7 @@ const swaggerOptions = {
       },
     ],
   },
-  apis: [__filename], // archivos donde están las rutas
+  apis: [path.join(__dirname, 'api-server.cjs')], // ruta absoluta al archivo
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
@@ -91,7 +91,11 @@ app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
 // Ruta para documentación Swagger
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(null, {
+  swaggerOptions: {
+    url: '/api/docs.json'
+  }
+}));
 
 // Ruta para obtener la especificación Swagger JSON
 app.get('/api/docs.json', (req, res) => {
