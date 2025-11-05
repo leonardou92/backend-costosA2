@@ -92,6 +92,29 @@ app.get('/api/dbtest', async (req, res) => {
   }
 });
 
+app.get('/api/inventario/reporte', async (req, res) => {
+  if (!DATABASE_URL) return res.status(500).json({ ok: false, error: 'no_database_url' });
+  try {
+    const pool = getPool();
+    const query = `
+      SELECT * FROM inventario_costos 
+      WHERE EXTRACT(YEAR FROM fecha_sistema) = 2025 
+      AND EXTRACT(MONTH FROM fecha_sistema) = 10 
+      ORDER BY fecha_sistema
+    `;
+    const result = await pool.query(query);
+    return res.json({ 
+      ok: true, 
+      reporte: 'inventario_octubre_2025', 
+      total_registros: result.rows.length, 
+      data: result.rows 
+    });
+  } catch (err) {
+    console.error('inventario reporte error', err && err.message ? err.message : err);
+    return res.status(500).json({ ok: false, error: 'db_query_failed', message: String(err && err.message ? err.message : 'query_error') });
+  }
+});
+
 // serve static front if present
 try {
   const distPath = path.join(__dirname, '..', 'dist');
