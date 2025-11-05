@@ -1379,7 +1379,21 @@ app.get('/api/import/status/:jobId', (req, res) => {
   res.json(job);
 });
 
-// Login endpoint removed: authentication is handled via Basic Auth (use DEV_USERNAME/DEV_PASSWORD)
+// Login endpoint: accept username/password and return a JWT for clients
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password) return res.status(400).json({ ok: false, error: 'username and password required' });
+  if (username === DEV_USERNAME && password === DEV_PASSWORD) {
+    try {
+      const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '8h' });
+      return res.json({ ok: true, token, username });
+    } catch (e) {
+      console.error('error signing jwt', e && e.message ? e.message : e);
+      return res.status(500).json({ ok: false, error: 'token_error' });
+    }
+  }
+  return res.status(401).json({ ok: false, error: 'invalid credentials' });
+});
 
 // Validate token and return current user info
 app.get('/api/me', (req, res) => {
