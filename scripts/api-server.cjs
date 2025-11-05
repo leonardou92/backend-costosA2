@@ -59,7 +59,7 @@ if (!process.env.JWT_SECRET) {
 
 const getSessionFromReq = (req) => {
   try {
-    const auth = req.headers && (req.headers.authorization || req.headers.Authorization);
+    const auth = req.headers.authorization || req.headers.Authorization;
     if (!auth) return null;
     const parts = String(auth).split(' ');
     const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : parts[0];
