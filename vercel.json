@@ -2,5 +2,9 @@
   "version": 2,
   "builds": [
     { "src": "api/**/*.cjs", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/index.cjs" },
+    { "src": "/api", "dest": "/api/index.cjs" }
   ]
 }

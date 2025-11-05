@@ -161,8 +161,9 @@ const swaggerOptions = {
   apis: [__filename], // files containing annotations as above
 };
 
-const swaggerSpec = swaggerJsdoc(swaggerOptions);
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+// generate swagger spec from JSDoc-style annotations (if any)
+const swaggerSpecFromJsdoc = swaggerJSDoc(swaggerOptions);
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecFromJsdoc));
 
 // Centralized Neon client (serverless-friendly). See scripts/neon-client.cjs
 const { getPool, poolClient, testConnection } = require('./neon-client.cjs');
