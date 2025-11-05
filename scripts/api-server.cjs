@@ -10,6 +10,8 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
+const swaggerUi = require('swagger-ui-express');
+const swaggerJsdoc = require('swagger-jsdoc');
 
 dotenv.config();
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -21,6 +23,45 @@ if (!DATABASE_URL) {
     console.warn(msg);
   }
 }
+
+// Configuración de Swagger
+const swaggerOptions = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'Backend Costos A2 API',
+      version: '1.0.0',
+      description: 'API para gestión de costos e inventarios',
+    },
+    servers: [
+      {
+        url: 'https://backend-costos-a2.vercel.app',
+        description: 'Servidor de producción',
+      },
+      {
+        url: 'http://localhost:3001',
+        description: 'Servidor local',
+      },
+    ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      },
+    },
+    security: [
+      {
+        bearerAuth: [],
+      },
+    ],
+  },
+  apis: [__filename], // archivos donde están las rutas
+};
+
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
 try {
   const dbInfo = {};
@@ -48,6 +89,9 @@ const corsOptions = FRONTEND_ORIGIN ? { origin: FRONTEND_ORIGIN } : undefined;
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ limit: '20mb', extended: true }));
+
+// Ruta para documentación Swagger
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Centralized Neon client (serverless-friendly). See scripts/neon-client.fixed.cjs
 const { getPool, poolClient, testConnection } = require('./neon-client.fixed.cjs');
@@ -81,6 +125,230 @@ const requireAuth = (req, res, next) => {
   req.session = session;
   next();
 };
+
+/**
+ * @swagger
+ * /api/health:
+ *   get:
+ *     summary: Verificar estado del servidor
+ *     description: Retorna información sobre el estado del servidor y conexión a BD
+ *     responses:
+ *       200:
+ *         description: Estado del servidor
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 healthy:
+ *                   type: boolean
+ *                 uptime:
+ *                   type: number
+ *                 env_database:
+ *                   type: boolean
+ *                 now:
+ *                   type: number
+ */
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, healthy: true, uptime: process.uptime(), env_database: !!DATABASE_URL, now: Date.now() });
+});
+
+/**
+ * @swagger
+ * /api/ping:
+ *   get:
+ *     summary: Ping simple
+ *     description: Respuesta básica para verificar que la API está funcionando
+ *     responses:
+ *       200:
+ *         description: Respuesta de ping
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 uptime:
+ *                   type: number
+ *                 env_database:
+ *                   type: boolean
+ */
+app.get('/api/ping', (req, res) => {
+  res.json({ ok: true, uptime: process.uptime(), env_database: !!DATABASE_URL });
+});
+
+/**
+ * @swagger
+ * /api/dbtest:
+ *   get:
+ *     summary: Probar conexión a base de datos
+ *     description: Verifica la conectividad con la base de datos PostgreSQL
+ *     responses:
+ *       200:
+ *         description: Conexión exitosa
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Error de conexión
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ *                 message:
+ *                   type: string
+ */
+app.get('/api/dbtest', async (req, res) => {
+  if (!DATABASE_URL) return res.status(500).json({ ok: false, error: 'no_database_url' });
+  try {
+    const pool = getPool();
+    await pool.query('SELECT 1');
+    return res.json({ ok: true, message: 'db_reachable' });
+  } catch (err) {
+    console.error('dbtest connect error', err && err.message ? err.message : err);
+    return res.status(500).json({ ok: false, error: 'db_connect_failed', message: String(err && err.message ? err.message : 'connect_error') });
+  }
+});
+
+/**
+ * @swagger
+ * /api/login:
+ *   post:
+ *     summary: Autenticación de usuario
+ *     description: Inicia sesión y obtiene un token JWT
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 example: admin
+ *               password:
+ *                 type: string
+ *                 example: admin
+ *     responses:
+ *       200:
+ *         description: Login exitoso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 token:
+ *                   type: string
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: Credenciales inválidas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ *                 message:
+ *                   type: string
+ */
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body;
+  // Para demo: usuario fijo
+  if (username === 'admin' && password === 'admin') {
+    const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '24h' });
+    return res.json({ ok: true, token, message: 'Login exitoso' });
+  }
+  return res.status(401).json({ ok: false, error: 'invalid_credentials', message: 'Usuario o contraseña incorrectos' });
+});
+
+/**
+ * @swagger
+ * /api/inventario/reporte:
+ *   get:
+ *     summary: Obtener reporte de inventario
+ *     description: Retorna el reporte completo de inventario para octubre 2025
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Reporte de inventario
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 reporte:
+ *                   type: string
+ *                 total_registros:
+ *                   type: integer
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 usuario:
+ *                   type: string
+ *       401:
+ *         description: No autorizado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ *                 message:
+ *                   type: string
+ */
+app.get('/api/inventario/reporte', requireAuth, async (req, res) => {
+  if (!DATABASE_URL) return res.status(500).json({ ok: false, error: 'no_database_url' });
+  try {
+    const pool = getPool();
+    const query = `
+      SELECT * FROM inventario_costos 
+      WHERE EXTRACT(YEAR FROM fecha_sistema) = 2025 
+      AND EXTRACT(MONTH FROM fecha_sistema) = 10 
+      ORDER BY fecha_sistema
+    `;
+    const result = await pool.query(query);
+    return res.json({ 
+      ok: true, 
+      reporte: 'inventario_octubre_2025', 
+      total_registros: result.rows.length, 
+      data: result.rows,
+      usuario: req.session.username 
+    });
+  } catch (err) {
+    console.error('inventario reporte error', err && err.message ? err.message : err);
+    return res.status(500).json({ ok: false, error: 'db_query_failed', message: String(err && err.message ? err.message : 'query_error') });
+  }
+});
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, healthy: true, uptime: process.uptime(), env_database: !!DATABASE_URL, now: Date.now() });
