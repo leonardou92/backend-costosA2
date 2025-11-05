@@ -9,8 +9,13 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const { Pool } = require('pg');
 const ExcelJS = require('exceljs');
+// Swagger dependencies
+const swaggerUi = require('swagger-ui-express');
+const swaggerJSDoc = require('swagger-jsdoc');
 const path = require('path');
 const fs = require('fs');
+const swaggerJsdoc = require('swagger-jsdoc');
+const swaggerUi = require('swagger-ui-express');
 
 dotenv.config();
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -57,6 +62,109 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ limit: '20mb', extended: true }));
+
+// --- Swagger setup -------------------------------------------------------
+try {
+  const serverUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:${process.env.API_PORT || 3001}`;
+  const swaggerSpec = {
+    openapi: '3.0.0',
+    info: {
+      title: 'Costos API',
+      version: '1.0.0',
+      description: 'Documentación de la API de Costos A2'
+    },
+    servers: [{ url: serverUrl }],
+    paths: {
+      '/api/health': {
+        get: {
+          summary: 'Health check',
+          responses: {
+            '200': { description: 'OK' }
+          }
+        }
+      },
+      '/api/login': {
+        post: {
+          summary: 'Login de desarrollo',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { type: 'object', properties: { username: { type: 'string' }, password: { type: 'string' } } }
+              }
+            }
+          },
+          responses: { '200': { description: 'Token JWT' }, '401': { description: 'Credenciales inválidas' } }
+        }
+      },
+      '/api/summary': {
+        get: {
+          summary: 'Resumen ventas/costos',
+          parameters: [
+            { name: 'year', in: 'query', schema: { type: 'integer' } },
+            { name: 'month', in: 'query', schema: { type: 'integer' } }
+          ],
+          responses: { '200': { description: 'Resumen calculado' }, '401': { description: 'No autorizado' } }
+        }
+      },
+      '/api/series': {
+        get: {
+          summary: 'Series de ventas/costos',
+          parameters: [
+            { name: 'type', in: 'query', schema: { type: 'string', enum: ['day','month','year'] } },
+            { name: 'year', in: 'query', schema: { type: 'integer' } },
+            { name: 'month', in: 'query', schema: { type: 'integer' } }
+          ],
+          responses: { '200': { description: 'Array de periodos' }, '401': { description: 'No autorizado' } }
+        }
+      }
+    }
+  };
+
+  // mount swagger UI under /api/docs and expose raw spec at /api/docs.json
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.get('/api/docs.json', (req, res) => res.json(swaggerSpec));
+} catch (e) {
+  console.warn('Could not enable Swagger UI:', e && e.message ? e.message : e);
+}
+
+// -------------------------------------------------------------------------
+
+// Swagger configuration
+const swaggerOptions = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'Backend Costos A2 API',
+      version: '1.0.0',
+      description: 'API para gestión de costos y análisis de ventas',
+    },
+    servers: [
+      {
+        url: 'http://localhost:3001',
+        description: 'Servidor de desarrollo',
+      },
+    ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      },
+    },
+    security: [
+      {
+        bearerAuth: [],
+      },
+    ],
+  },
+  apis: [__filename], // files containing annotations as above
+};
+
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Centralized Neon client (serverless-friendly). See scripts/neon-client.cjs
 const { getPool, poolClient, testConnection } = require('./neon-client.cjs');
@@ -221,8 +329,36 @@ app.get('/api/inventario', async (req, res) => {
   }
 });
 
-// Lightweight health endpoint that does not touch the database. Useful for
-// serverless readiness checks from the frontend or load balancers.
+/**
+ * @swagger
+ * /api/health:
+ *   get:
+ *     summary: Verificar estado del servidor
+ *     description: Endpoint de health check que verifica si el servidor está funcionando
+ *     responses:
+ *       200:
+ *         description: Servidor funcionando correctamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                   example: true
+ *                 healthy:
+ *                   type: boolean
+ *                   example: true
+ *                 uptime:
+ *                   type: number
+ *                   example: 123.45
+ *                 env_database:
+ *                   type: boolean
+ *                   example: true
+ *                 now:
+ *                   type: number
+ *                   example: 1762374207697
+ */
 app.get('/api/health', (req, res) => {
   // Minimal, fast health check that avoids touching the DB.
   res.json({ ok: true, healthy: true, uptime: process.uptime(), env_database: !!DATABASE_URL, now: Date.now() });
@@ -1277,7 +1413,59 @@ app.get('/api/import/status/:jobId', (req, res) => {
   res.json(job);
 });
 
-// Simple dev login endpoint. No persistent users — accepts only the dev credential.
+/**
+ * @swagger
+ * /api/login:
+ *   post:
+ *     summary: Iniciar sesión
+ *     description: Autenticar usuario y obtener token JWT
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 example: "leonardou92"
+ *               password:
+ *                 type: string
+ *                 example: "8121230219"
+ *     responses:
+ *       200:
+ *         description: Login exitoso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                   example: true
+ *                 token:
+ *                   type: string
+ *                   example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                 username:
+ *                   type: string
+ *                   example: "leonardou92"
+ *       401:
+ *         description: Credenciales inválidas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                   example: "invalid credentials"
+ */
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body || {};
   // development-only credential (per user request)
