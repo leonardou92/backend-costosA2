@@ -18,7 +18,8 @@ const fs = require('fs');
 dotenv.config();
 const DATABASE_URL = process.env.DATABASE_URL;
 // Respect Render / cloud platform provided PORT first, then API_PORT, then fallback
-const APP_PORT = process.env.PORT || process.env.API_PORT || 3001;
+// Normalize port coming from environment and trim any accidental whitespace/newlines
+const APP_PORT = String(process.env.PORT || process.env.API_PORT || 3001).trim();
 if (!DATABASE_URL) {
   const msg = 'DATABASE_URL not set in environment';
   // If this file is executed directly as a server, fail fast. If it's required
@@ -1515,6 +1516,16 @@ try {
 } catch (e) {
   console.warn('Could not enable static file serving:', e && e.message ? e.message : e);
 }
+
+// If no frontend is present, provide a small root route to guide users.
+app.get('/', (req, res) => {
+  // prefer docs if available
+  try {
+    return res.redirect('/api/docs/');
+  } catch (e) {
+    return res.json({ ok: true, message: 'API is running', endpoints: ['/api/health','/api/docs'] });
+  }
+});
 
 // Start the HTTP listener only when executed as a standalone script. When this
 // module is required (for example by a serverless wrapper), export the `app`
