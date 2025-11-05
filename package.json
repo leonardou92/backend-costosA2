@@ -1,13 +1,12 @@
 {
-  "name": "costos-backend",
-  "version": "0.1.0",
+  "name": "costos-api",
+  "version": "0.0.0",
   "private": true,
   "type": "commonjs",
-  "main": "scripts/api-server.cjs",
   "scripts": {
     "start": "node scripts/api-server.cjs",
-    "dev": "nodemon --watch scripts --exec node scripts/api-server.cjs",
-    "check-db": "node scripts/check-db.cjs"
+    "check-db": "node scripts/check-db.cjs",
+    "dev": "node scripts/api-server.cjs"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -15,12 +14,6 @@
     "exceljs": "^4.4.0",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.0",
-    "pg": "^8.11.0",
-    "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1"
-  },
-  "devDependencies": {
-    "@vercel/node": "^5.5.4",
-    "nodemon": "^3.0.1"
+    "pg": "^8.11.0"
   }
 }

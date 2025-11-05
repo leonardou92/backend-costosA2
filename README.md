@@ -1,121 +1,64 @@
-# Backend Costos A2
+# Backend (costos-backend)
 
-Este proyecto es el backend independiente (Express.js) para la aplicación de costos A2. Proporciona APIs REST para gestionar inventarios, costos y ventas, conectándose a una base de datos PostgreSQL en Neon.
+Este directorio contiene el servidor independiente (Express) que sirve las
+APIs que consumen el frontend. Está pensado para desplegarse como un servicio
+persistente en Render, Fly, Docker host, etc.
 
-## Características
+Instrucciones rápidas (desarrollo):
 
-- API REST con Express.js
-- Conexión a base de datos PostgreSQL (Neon)
-- Autenticación JWT
-- Generación de reportes en Excel
-- Despliegue en Docker
+1) Copia `.env.example` a `.env` y añade `DATABASE_URL` y `JWT_SECRET`.
 
-## Requisitos
+2) Instala dependencias e inicia (local):
 
-- Node.js 18+
-- PostgreSQL (Neon o similar)
-- npm o yarn
-
-## Instalación
-
-1. Clona el repositorio y entra al directorio:
-   ```bash
-   git clone <url-del-repo>
-   cd backend-costosA2
-   ```
-
-2. Instala las dependencias:
-   ```bash
-   npm install
-   ```
-
-3. Configura las variables de entorno creando un archivo `.env`:
-   ```bash
-   DATABASE_URL=postgresql://usuario:password@host:puerto/dbname
-   JWT_SECRET=tu_clave_secreta_para_jwt
-   ```
-
-## Ejecución Local
-
-### Desarrollo
 ```bash
-npm run dev  # Con nodemon para recarga automática
+cd backend
+npm ci
+npm run check-db   # opción: verifica conexión a la BD
+npm run dev        # arranca con nodemon
 ```
 
-### Producción
+3) Docker (build + run):
+
 ```bash
-npm start  # Inicia el servidor en puerto 3001
+docker build -t costos-backend:latest ./backend
+docker run --rm -p 3001:3001 -e DATABASE_URL="$DATABASE_URL" -e JWT_SECRET="$JWT_SECRET" costos-backend:latest
 ```
 
-### Verificar Conexión a BD
+4) Conectar frontend (Vercel): en Project Settings -> Environment Variables, añade:
+
+- `VITE_API_URL` = `https://your-backend.example.com`
+
+Nota sobre puerto y CORS:
+
+- El servidor backend usa por defecto el puerto 3001. Puedes sobreescribirlo con la variable de entorno `PORT` o `API_PORT`.
+- Para restringir orígenes CORS en despliegue, define `VITE_API_URL` o `FRONTEND_ORIGIN` en el entorno del servidor; en su ausencia el backend permitirá orígenes desde cualquier host (útil para desarrollo).
+
+Notas:
+- No subas secretos al repositorio. Usa variables de entorno en el host.
+- Si la conexión a Neon falla desde un entorno serverless por TLS, desplegar
+  un backend persistente en una VM/container suele resolver ETIMEDOUT.
+# Backend (costos-api)
+
+This is the separated backend project for the Costos A2 app.
+
+Quick start (local):
+
+1. Copy `.env.example` to `.env` and fill values (DATABASE_URL, JWT_SECRET).
+
+2. Install deps and run locally:
+
 ```bash
-npm run check-db  # Inspecciona tablas y muestra datos de ejemplo
+cd backend
+npm ci
+npm run check-db   # optional: verify DB connectivity
+npm start          # starts API at http://localhost:3001
 ```
 
-## Docker
+Docker:
 
-### Construir Imagen
 ```bash
-docker build -t backend-costos-a2:latest .
+docker build -t costos-api:latest .
+docker run --rm -p 3001:3001 --env-file .env costos-api:latest
 ```
 
-### Ejecutar Contenedor
-```bash
-docker run --rm -p 3001:3001 --env-file .env backend-costos-a2:latest
-```
-
-## API Endpoints
-
-El servidor corre en `http://localhost:3001` por defecto.
-
-### Documentación Interactiva
-- **Swagger UI**: [https://backend-costos-a2.vercel.app/api/docs](https://backend-costos-a2.vercel.app/api/docs)
-- **Local**: `http://localhost:3001/api/docs`
-
-**✅ Estado**: Documentación Swagger completamente funcional en producción y desarrollo.
-
-### Endpoints Disponibles
-
-- `GET /api/health` - Verifica el estado del servidor
-- `GET /api/ping` - Respuesta simple de ping
-- `GET /api/dbtest` - Prueba de conexión a la base de datos
-- `POST /api/login` - Login con username/password, devuelve token JWT
-- `GET /api/inventario/reporte` - **Requiere token JWT** - Reporte de inventario de octubre 2025
-
-## Despliegue
-
-### Variables de Entorno Requeridas
-- `DATABASE_URL`: URL de conexión a PostgreSQL
-- `JWT_SECRET`: Clave secreta para tokens JWT
-- `PORT` (opcional): Puerto del servidor (default: 3001)
-
-### Plataformas Recomendadas
-- Render
-- Fly.io
-- Railway
-- Docker en cualquier host
-
-### Conectar con Frontend
-En el frontend, configura `VITE_API_URL` apuntando a la URL del backend desplegado.
-
-## Notas Importantes
-
-- **Seguridad**: Nunca subas el archivo `.env` al repositorio. Está incluido en `.gitignore`.
-- **CORS**: En desarrollo permite todos los orígenes. En producción, configura `FRONTEND_ORIGIN` para restringir.
-- **Base de Datos**: Usa Neon para serverless PostgreSQL. Si hay problemas de TLS en entornos serverless, considera un backend persistente.
-- **Reportes**: El proyecto incluye funcionalidad para generar reportes de inventario en Excel.
-
-## Estructura del Proyecto
-
-```
-backend-costosA2/
-├── api/                 # (vacío, posiblemente para rutas futuras)
-├── scripts/
-│   ├── api-server.cjs   # Servidor principal Express
-│   ├── check-db.cjs     # Script para inspeccionar BD
-│   └── neon-client.cjs  # Cliente de conexión a Neon
-├── Dockerfile           # Configuración Docker
-├── package.json         # Dependencias y scripts
-├── README.md            # Este archivo
-└── .gitignore           # Archivos ignorados por Git
-```
+When deployed, point the frontend `VITE_API_URL` to the backend URL.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Simple DB check script for backend project */
+/* CommonJS version so it works when package.json uses "type": "module" */
 const dotenv = require('dotenv');
 const { Client } = require('pg');
 
