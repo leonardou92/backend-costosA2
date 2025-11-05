@@ -17,6 +17,8 @@ const fs = require('fs');
 // (swaggerJsdoc / swaggerUi already declared above)
 dotenv.config();
 const DATABASE_URL = process.env.DATABASE_URL;
+// Respect Render / cloud platform provided PORT first, then API_PORT, then fallback
+const APP_PORT = process.env.PORT || process.env.API_PORT || 3001;
 if (!DATABASE_URL) {
   const msg = 'DATABASE_URL not set in environment';
   // If this file is executed directly as a server, fail fast. If it's required
@@ -63,7 +65,7 @@ app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
 // --- Swagger setup -------------------------------------------------------
 try {
-  const serverUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:${process.env.API_PORT || 3001}`;
+  const serverUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:${APP_PORT}`;
   const swaggerSpec = {
     openapi: '3.0.0',
     info: {
@@ -139,7 +141,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: 'http://localhost:3001',
+        url: `http://localhost:${APP_PORT}`,
         description: 'Servidor de desarrollo',
       },
     ],
