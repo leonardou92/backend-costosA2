@@ -14,9 +14,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerJSDoc = require('swagger-jsdoc');
 const path = require('path');
 const fs = require('fs');
-const swaggerJsdoc = require('swagger-jsdoc');
-const swaggerUi = require('swagger-ui-express');
-
+// (swaggerJsdoc / swaggerUi already declared above)
 dotenv.config();
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
