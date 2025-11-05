@@ -72,6 +72,8 @@ El servidor corre en `http://localhost:3001` por defecto.
 - **Swagger UI**: [https://backend-costos-a2.vercel.app/api/docs](https://backend-costos-a2.vercel.app/api/docs)
 - **Local**: `http://localhost:3001/api/docs`
 
+**✅ Estado**: Documentación Swagger completamente funcional en producción y desarrollo.
+
 ### Endpoints Disponibles
 
 - `GET /api/health` - Verifica el estado del servidor
