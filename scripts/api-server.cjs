@@ -252,25 +252,27 @@ app.get('/api/series', async (req, res) => {
     await client.connect();
     let rows = [];
     if (type === 'day') {
-      // sales per day
-      const q = `SELECT date_trunc('day', fdi_fechaoperacion) as day,
-        SUM(COALESCE(fdi_preciodeventadcto,0) * COALESCE(fdi_cantidad,0)) as ventas
-        FROM ventas
-        WHERE EXTRACT(YEAR FROM fdi_fechaoperacion) = $1 AND EXTRACT(MONTH FROM fdi_fechaoperacion) = $2
+      // Aggregate ventas and costos per day using a join to inventario_costos
+      const q = `
+        SELECT date_trunc('day', v.fdi_fechaoperacion) AS day,
+          SUM(COALESCE(v.fdi_preciodeventadcto,0) * COALESCE(v.fdi_cantidad,0)) AS ventas,
+          SUM(
+            CASE
+              WHEN v.fdi_unddetallada <> TRUE
+                THEN COALESCE(ici.costo_actual,0) * COALESCE(v.fdi_cantidad,0)
+              ELSE (COALESCE(ici.costo_actual,0) / NULLIF(ici.capacidad_con,0)) * COALESCE(v.fdi_cantidad,0)
+            END
+          ) AS costos
+        FROM ventas v
+        LEFT JOIN inventario_costos ici ON ici.codigo = v.fdi_codigo AND ici.fecha_sistema = v.fdi_fechaoperacion
+        WHERE EXTRACT(YEAR FROM v.fdi_fechaoperacion) = $1 AND EXTRACT(MONTH FROM v.fdi_fechaoperacion) = $2
         GROUP BY day
-        ORDER BY day`;
+        ORDER BY day
+      `;
       const r = await client.query(q, [year, month]);
-      // costos per day from inventario (use fecha_sistema). We'll sum costo_actual * existencia_deta by day
-      const qc = `SELECT date_trunc('day', fecha_sistema) as day, SUM(COALESCE(costo_actual,0) * COALESCE(existencia_deta,0)) as costos
-        FROM inventario_costos
-        WHERE EXTRACT(YEAR FROM fecha_sistema) = $1 AND EXTRACT(MONTH FROM fecha_sistema) = $2
-        GROUP BY day
-        ORDER BY day`;
-      const rc = await client.query(qc, [year, month]);
       const mapVentas = new Map(r.rows.map(row => [row.day.toISOString().slice(0,10), Number(row.ventas)||0]));
-      const mapCostos = new Map(rc.rows.map(row => [row.day.toISOString().slice(0,10), Number(row.costos)||0]));
+      const mapCostos = new Map(r.rows.map(row => [row.day.toISOString().slice(0,10), Number(row.costos)||0]));
 
-      // produce array for all days in month
       const daysInMonth = new Date(year, month, 0).getDate();
       for (let d = 1; d <= daysInMonth; d++) {
         const dt = new Date(year, month -1, d);
@@ -278,30 +280,50 @@ app.get('/api/series', async (req, res) => {
         rows.push({ periodo: `Día ${d}`, ventas: mapVentas.get(key) || 0, costos: mapCostos.get(key) || 0 });
       }
     } else if (type === 'month') {
-      // months of the given year
-      const qv = `SELECT EXTRACT(MONTH FROM fdi_fechaoperacion) as mes, SUM(COALESCE(fdi_preciodeventadcto,0) * COALESCE(fdi_cantidad,0)) as ventas
-        FROM ventas WHERE EXTRACT(YEAR FROM fdi_fechaoperacion) = $1 GROUP BY mes ORDER BY mes`;
-      const rcv = await client.query(qv, [year]);
-      const qc = `SELECT EXTRACT(MONTH FROM fecha_sistema) as mes, SUM(COALESCE(costo_actual,0) * COALESCE(existencia_deta,0)) as costos
-        FROM inventario_costos WHERE EXTRACT(YEAR FROM fecha_sistema) = $1 GROUP BY mes ORDER BY mes`;
-      const rcc = await client.query(qc, [year]);
-      const mapVentas = new Map(rcv.rows.map(r => [Number(r.mes), Number(r.ventas)||0]));
-      const mapCostos = new Map(rcc.rows.map(r => [Number(r.mes), Number(r.costos)||0]));
+      const q = `
+        SELECT EXTRACT(MONTH FROM v.fdi_fechaoperacion) AS mes,
+          SUM(COALESCE(v.fdi_preciodeventadcto,0) * COALESCE(v.fdi_cantidad,0)) AS ventas,
+          SUM(
+            CASE
+              WHEN v.fdi_unddetallada <> TRUE
+                THEN COALESCE(ici.costo_actual,0) * COALESCE(v.fdi_cantidad,0)
+              ELSE (COALESCE(ici.costo_actual,0) / NULLIF(ici.capacidad_con,0)) * COALESCE(v.fdi_cantidad,0)
+            END
+          ) AS costos
+        FROM ventas v
+        LEFT JOIN inventario_costos ici ON ici.codigo = v.fdi_codigo AND ici.fecha_sistema = v.fdi_fechaoperacion
+        WHERE EXTRACT(YEAR FROM v.fdi_fechaoperacion) = $1
+        GROUP BY mes
+        ORDER BY mes
+      `;
+      const r = await client.query(q, [year]);
+      const mapVentas = new Map(r.rows.map(row => [Number(row.mes), Number(row.ventas)||0]));
+      const mapCostos = new Map(r.rows.map(row => [Number(row.mes), Number(row.costos)||0]));
       const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
       for (let m = 1; m <= 12; m++) {
         rows.push({ periodo: monthNames[m-1], ventas: mapVentas.get(m) || 0, costos: mapCostos.get(m) || 0 });
       }
     } else {
-      // year: last 5 years
       const start = year - 4;
-      const qv = `SELECT EXTRACT(YEAR FROM fdi_fechaoperacion) as y, SUM(COALESCE(fdi_preciodeventadcto,0) * COALESCE(fdi_cantidad,0)) as ventas
-        FROM ventas WHERE EXTRACT(YEAR FROM fdi_fechaoperacion) BETWEEN $1 AND $2 GROUP BY y ORDER BY y`;
-      const rcv = await client.query(qv, [start, year]);
-      const qc = `SELECT EXTRACT(YEAR FROM fecha_sistema) as y, SUM(COALESCE(costo_actual,0) * COALESCE(existencia_deta,0)) as costos
-        FROM inventario_costos WHERE EXTRACT(YEAR FROM fecha_sistema) BETWEEN $1 AND $2 GROUP BY y ORDER BY y`;
-      const rcc = await client.query(qc, [start, year]);
-      const mapVentas = new Map(rcv.rows.map(r => [Number(r.y), Number(r.ventas)||0]));
-      const mapCostos = new Map(rcc.rows.map(r => [Number(r.y), Number(r.costos)||0]));
+      const q = `
+        SELECT EXTRACT(YEAR FROM v.fdi_fechaoperacion) AS y,
+          SUM(COALESCE(v.fdi_preciodeventadcto,0) * COALESCE(v.fdi_cantidad,0)) AS ventas,
+          SUM(
+            CASE
+              WHEN v.fdi_unddetallada <> TRUE
+                THEN COALESCE(ici.costo_actual,0) * COALESCE(v.fdi_cantidad,0)
+              ELSE (COALESCE(ici.costo_actual,0) / NULLIF(ici.capacidad_con,0)) * COALESCE(v.fdi_cantidad,0)
+            END
+          ) AS costos
+        FROM ventas v
+        LEFT JOIN inventario_costos ici ON ici.codigo = v.fdi_codigo AND ici.fecha_sistema = v.fdi_fechaoperacion
+        WHERE EXTRACT(YEAR FROM v.fdi_fechaoperacion) BETWEEN $1 AND $2
+        GROUP BY y
+        ORDER BY y
+      `;
+      const r = await client.query(q, [start, year]);
+      const mapVentas = new Map(r.rows.map(row => [Number(row.y), Number(row.ventas)||0]));
+      const mapCostos = new Map(r.rows.map(row => [Number(row.y), Number(row.costos)||0]));
       for (let y = start; y <= year; y++) rows.push({ periodo: `${y}`, ventas: mapVentas.get(y) || 0, costos: mapCostos.get(y) || 0 });
     }
 
