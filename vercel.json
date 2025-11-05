@@ -8,9 +8,4 @@
     { "src": "/api/(.*)", "dest": "/api/index.cjs" },
     { "src": "/api", "dest": "/api/index.cjs" }
   ]
-  ,
-  "functions": {
-    "api/**/*.cjs": { "memory": 1024, "maxDuration": 60 },
-    "api/**/*.js": { "memory": 1024, "maxDuration": 60 }
-  }
 }
