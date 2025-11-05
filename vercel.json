@@ -1,6 +1,18 @@
 {
   "version": 2,
   "builds": [
-    { "src": "api/**/*.js", "use": "@vercel/node" }
+    { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } },
+    { "src": "api/**/*.js", "use": "@vercel/node" },
+    { "src": "api/**/*.cjs", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/api/login", "dest": "/api/login.cjs" },
+    { "src": "/api/health", "dest": "/api/health.cjs" },
+    { "src": "/api/ping", "dest": "/api/ping.cjs" },
+    { "src": "/api/inventario", "dest": "/api/inventario.cjs" },
+    { "src": "/api/(.*)", "dest": "/api/index.cjs" },
+    { "src": "/assets/(.*)", "dest": "/assets/$1" },
+    { "src": "/favicon.ico", "dest": "/favicon.ico" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
