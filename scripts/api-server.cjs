@@ -223,7 +223,7 @@ app.get('/api/summary', async (req, res) => {
           END
         ), 0) AS costos
       FROM ventas v
-      LEFT JOIN inventario_costos ici
+      INNER JOIN inventario_costos ici
         ON ici.codigo = v.fdi_codigo AND ici.fecha_sistema = v.fdi_fechaoperacion
       WHERE EXTRACT(YEAR FROM v.fdi_fechaoperacion) = $1
         AND EXTRACT(MONTH FROM v.fdi_fechaoperacion) = $2
