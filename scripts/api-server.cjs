@@ -75,54 +75,30 @@ try {
       description: 'Documentación de la API de Costos A2'
     },
     servers: [{ url: serverUrl }],
-    paths: {
-      '/api/health': {
-        get: {
-          summary: 'Health check',
-          responses: {
-            '200': { description: 'OK' }
-          }
-        }
-      },
-      '/api/login': {
-        post: {
-          summary: 'Login de desarrollo',
-          requestBody: {
-            required: true,
-            content: {
-              'application/json': {
-                schema: { type: 'object', properties: { username: { type: 'string' }, password: { type: 'string' } } }
-              }
-            }
-          },
-          responses: { '200': { description: 'Token JWT' }, '401': { description: 'Credenciales inválidas' } }
-        }
-      },
-      '/api/summary': {
-        get: {
-          summary: 'Resumen ventas/costos',
-          parameters: [
-            { name: 'year', in: 'query', schema: { type: 'integer' } },
-            { name: 'month', in: 'query', schema: { type: 'integer' } }
-          ],
-          responses: { '200': { description: 'Resumen calculado' }, '401': { description: 'No autorizado' } }
-        }
-      },
-      '/api/series': {
-        get: {
-          summary: 'Series de ventas/costos',
-          parameters: [
-            { name: 'type', in: 'query', schema: { type: 'string', enum: ['day','month','year'] } },
-            { name: 'year', in: 'query', schema: { type: 'integer' } },
-            { name: 'month', in: 'query', schema: { type: 'integer' } }
-          ],
-          responses: { '200': { description: 'Array de periodos' }, '401': { description: 'No autorizado' } }
-        }
+    components: {
+      securitySchemes: {
+        basicAuth: { type: 'http', scheme: 'basic' }
       }
+    },
+    security: [{ basicAuth: [] }],
+    paths: {
+      '/api/health': { get: { summary: 'Health check', responses: { '200': { description: 'OK' } } } },
+      '/api/summary': { get: { summary: 'Resumen ventas/costos', parameters: [ { name: 'year', in: 'query', schema: { type: 'integer' } }, { name: 'month', in: 'query', schema: { type: 'integer' } } ], responses: { '200': { description: 'Resumen calculado' }, '401': { description: 'No autorizado' } } } },
+      '/api/series': { get: { summary: 'Series de ventas/costos', parameters: [ { name: 'type', in: 'query', schema: { type: 'string', enum: ['day','month','year'] } }, { name: 'year', in: 'query', schema: { type: 'integer' } }, { name: 'month', in: 'query', schema: { type: 'integer' } } ], responses: { '200': { description: 'Array de periodos' }, '401': { description: 'No autorizado' } } } },
+      '/api/inventario': { get: { summary: 'Inventario por fecha', parameters: [ { name: 'year', in: 'query' }, { name: 'month', in: 'query' }, { name: 'day', in: 'query' } ], responses: { '200': { description: 'Lista de inventario' }, '400': { description: 'Bad request' }, '401': { description: 'No autorizado' } } } },
+      '/api/inventario/days': { get: { summary: 'Días disponibles en inventario', parameters: [ { name: 'year', in: 'query' }, { name: 'month', in: 'query' } ], responses: { '200': { description: 'Lista de días' }, '401': { description: 'No autorizado' } } } },
+      '/api/inventario/import': { post: { summary: 'Importar inventario (texto)', requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { date: { type: 'string' }, content: { type: 'string' } } } } } }, responses: { '200': { description: 'Import finished' }, '400': { description: 'Bad request' }, '401': { description: 'No autorizado' } } } },
+      '/api/inventario/clear': { post: { summary: 'Borrar inventario por fecha', requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { date: { type: 'string' } } } } } }, responses: { '200': { description: 'Deleted count' }, '401': { description: 'No autorizado' } } } },
+      '/api/ventas/import': { post: { summary: 'Importar ventas (texto)', requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { content: { type: 'string' } } } } } }, responses: { '202': { description: 'Accepted (jobId)' }, '400': { description: 'Bad request' }, '401': { description: 'No autorizado' } } } },
+      '/api/report/costos-ventas': { get: { summary: 'Exportar costos de ventas (XLSX)', parameters: [ { name: 'year', in: 'query' }, { name: 'month', in: 'query' } ], responses: { '200': { description: 'XLSX file' }, '401': { description: 'No autorizado' } } } },
+      '/api/report/costos-ventas/data': { get: { summary: 'Preview tabla costos-ventas', parameters: [ { name: 'page', in: 'query' }, { name: 'pageSize', in: 'query' } ], responses: { '200': { description: 'Paginated rows' }, '401': { description: 'No autorizado' } } } },
+      '/api/import/status/{jobId}': { get: { summary: 'Estado de import (ventas/inventario)', parameters: [ { name: 'jobId', in: 'path', required: true } ], responses: { '200': { description: 'Job status' }, '401': { description: 'No autorizado' } } } },
+      '/api/inventario/import/status/{jobId}': { get: { summary: 'Estado de import inventario', parameters: [ { name: 'jobId', in: 'path', required: true } ], responses: { '200': { description: 'Job status' }, '401': { description: 'No autorizado' } } } },
+      '/api/dbtest': { get: { summary: 'DB connectivity test', responses: { '200': { description: 'db_reachable' }, '500': { description: 'db_connect_failed' } } } },
+      '/api/ping': { get: { summary: 'Ping (no-auth)', responses: { '200': { description: 'pong' } } } }
     }
   };
 
-  // mount swagger UI under /api/docs and expose raw spec at /api/docs.json
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
   app.get('/api/docs.json', (req, res) => res.json(swaggerSpec));
 } catch (e) {
@@ -131,42 +107,7 @@ try {
 
 // -------------------------------------------------------------------------
 
-// Swagger configuration
-const swaggerOptions = {
-  definition: {
-    openapi: '3.0.0',
-    info: {
-      title: 'Backend Costos A2 API',
-      version: '1.0.0',
-      description: 'API para gestión de costos y análisis de ventas',
-    },
-    servers: [
-      {
-        url: `http://localhost:${APP_PORT}`,
-        description: 'Servidor de desarrollo',
-      },
-    ],
-    components: {
-      securitySchemes: {
-        bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT',
-        },
-      },
-    },
-    security: [
-      {
-        bearerAuth: [],
-      },
-    ],
-  },
-  apis: [__filename], // files containing annotations as above
-};
-
-// generate swagger spec from JSDoc-style annotations (if any)
-const swaggerSpecFromJsdoc = swaggerJSDoc(swaggerOptions);
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecFromJsdoc));
+// (swagger-jsdoc usage removed — using manual swaggerSpec above)
 
 // Centralized Neon client (serverless-friendly). See scripts/neon-client.cjs
 const { getPool, poolClient, testConnection } = require('./neon-client.cjs');
@@ -179,12 +120,30 @@ if (!process.env.JWT_SECRET) {
   console.warn('Warning: JWT_SECRET not set in environment; using fallback dev secret. Set JWT_SECRET in production.');
 }
 
+// Development credentials (can be overridden via env)
+const DEV_USERNAME = process.env.DEV_USERNAME || 'leonardou92';
+const DEV_PASSWORD = process.env.DEV_PASSWORD || '8121230219';
+
 // helper to extract and verify JWT from Authorization header
 const getSessionFromReq = (req) => {
   try {
     const auth = req.headers && (req.headers.authorization || req.headers.Authorization);
     if (!auth) return null;
     const parts = String(auth).split(' ');
+    // Basic auth support: Authorization: Basic base64(user:pass)
+    if (parts[0] && parts[0].toLowerCase() === 'basic') {
+      try {
+        const decoded = Buffer.from(parts[1] || '', 'base64').toString('utf8');
+        const idx = decoded.indexOf(':');
+        const user = idx === -1 ? decoded : decoded.slice(0, idx);
+        const pass = idx === -1 ? '' : decoded.slice(idx + 1);
+        if (user === DEV_USERNAME && pass === DEV_PASSWORD) return { username: user, createdAt: Date.now() };
+        return null;
+      } catch (e) {
+        return null;
+      }
+    }
+    // Bearer JWT fallback (if present)
     const token = parts.length === 2 && parts[0].toLowerCase() === 'bearer' ? parts[1] : parts[0];
     if (!token) return null;
     const payload = jwt.verify(token, JWT_SECRET);
@@ -368,6 +327,11 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/ping', (req, res) => {
   res.json({ ok: true, uptime: process.uptime(), env_database: !!DATABASE_URL });
+});
+
+// Convenience endpoint that mirrors the Vercel handler `api/ok.cjs`
+app.get('/api/ok', (req, res) => {
+  res.json({ ok: true, message: 'vercel api OK', env: { VERCEL_URL: process.env.VERCEL_URL || null } });
 });
 
 // DB connectivity test endpoint (no auth) — uses a short connection timeout so
@@ -1415,76 +1379,7 @@ app.get('/api/import/status/:jobId', (req, res) => {
   res.json(job);
 });
 
-/**
- * @swagger
- * /api/login:
- *   post:
- *     summary: Iniciar sesión
- *     description: Autenticar usuario y obtener token JWT
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - username
- *               - password
- *             properties:
- *               username:
- *                 type: string
- *                 example: "leonardou92"
- *               password:
- *                 type: string
- *                 example: "8121230219"
- *     responses:
- *       200:
- *         description: Login exitoso
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 ok:
- *                   type: boolean
- *                   example: true
- *                 token:
- *                   type: string
- *                   example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
- *                 username:
- *                   type: string
- *                   example: "leonardou92"
- *       401:
- *         description: Credenciales inválidas
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 ok:
- *                   type: boolean
- *                   example: false
- *                 error:
- *                   type: string
- *                   example: "invalid credentials"
- */
-app.post('/api/login', (req, res) => {
-  const { username, password } = req.body || {};
-  // development-only credential (per user request)
-  const DEV_USERNAME = 'leonardou92';
-  const DEV_PASSWORD = '8121230219';
-  if (username === DEV_USERNAME && password === DEV_PASSWORD) {
-    // issue JWT (stateless) so serverless functions don't need in-memory sessions
-    try {
-      const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '8h' });
-      return res.json({ ok: true, token, username });
-    } catch (e) {
-      console.error('error signing jwt', e && e.message ? e.message : e);
-      return res.status(500).json({ ok: false, error: 'token_error' });
-    }
-  }
-  return res.status(401).json({ ok: false, error: 'invalid credentials' });
-});
+// Login endpoint removed: authentication is handled via Basic Auth (use DEV_USERNAME/DEV_PASSWORD)
 
 // Validate token and return current user info
 app.get('/api/me', (req, res) => {
@@ -1531,7 +1426,7 @@ app.get('/', (req, res) => {
 // module is required (for example by a serverless wrapper), export the `app`
 // object so the wrapper can handle requests.
 if (require.main === module) {
-  const port = process.env.API_PORT || 3001;
+  const port = parseInt(APP_PORT, 10) || 3001;
   app.listen(port, () => {
     console.log(`API server listening on http://localhost:${port}`);
   });
