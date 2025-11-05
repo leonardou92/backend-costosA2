@@ -173,6 +173,36 @@ const normalizeDateInv = (s) => {
   return '';
 };
 
+// normalize numeric-like strings to JS Number (accepts "1.234,56" or "1,234.56" or "1234.56" etc.)
+const normalizeNumber = (v) => {
+  if (v === null || v === undefined) return 0;
+  let t = String(v).trim();
+  if (t === '') return 0;
+  // remove spaces
+  t = t.replace(/\s+/g, '');
+  // if contains comma as decimal sep and dots as thousand sep (e.g. 1.234,56)
+  const commaCount = (t.match(/,/g) || []).length;
+  const dotCount = (t.match(/\./g) || []).length;
+  if (commaCount > 0 && dotCount > 0) {
+    // assume dots are thousands and comma decimal -> remove dots, replace comma with dot
+    t = t.replace(/\./g, '').replace(/,/g, '.');
+  } else if (commaCount > 0 && dotCount === 0) {
+    // likely comma decimal -> replace with dot
+    t = t.replace(/,/g, '.');
+  }
+  // if multiple dots (e.g. 1.234.567.89) keep last as decimal
+  const parts = t.split('.');
+  if (parts.length > 2) {
+    const last = parts.pop();
+    t = parts.join('') + '.' + last;
+  }
+  // remove any non-digit, non-dot, non-minus
+  t = t.replace(/[^0-9.\-]/g, '');
+  if (t === '' || t === '-' || t === '.') return 0;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : 0;
+};
+
 app.get('/api/summary', async (req, res) => {
   const sess = getSessionFromReq(req);
   if (!sess) return res.status(401).json({ ok: false, error: 'no autorizado' });
@@ -483,9 +513,28 @@ app.post('/api/inventario/import', async (req, res) => {
       const values = [];
       const placeholders = [];
       let idx = 1;
-      for (const r of chunk) {
-        const fechaVal = normalizeDateInv(r.fecha_sistema || date);
-        const params = [r.codigo || null, r.descripcion || null, r.costo_anterior || 0, r.costo_actual || 0, r.costo_fob || 0, r.principal || 0, r.capacidad_con || 0, r.existencia_deta || 0, r.precio_sin_impu_1 || 0, r.precio_sin_impu_2 || 0, fechaVal];
+        for (const r of chunk) {
+        // prefer the provided `date` parameter (endpoint input); fall back to per-row fecha_sistema
+        let fechaVal = normalizeDateInv(date);
+        if (!fechaVal) fechaVal = normalizeDateInv(r.fecha_sistema);
+        if (!fechaVal) fechaVal = null;
+        // debug: log first parsed date values for the first chunk to help troubleshooting
+        if (inserted === 0 && placeholders.length === 0) {
+          console.log('inventario.import sample fechaVal for first row:', { providedDate: date, sampleRowFecha: r.fecha_sistema, parsed: fechaVal });
+        }
+        const params = [
+          r.codigo || null,
+          r.descripcion || null,
+          normalizeNumber(r.costo_anterior || 0),
+          normalizeNumber(r.costo_actual || 0),
+          normalizeNumber(r.costo_fob || 0),
+          normalizeNumber(r.principal || 0),
+          normalizeNumber(r.capacidad_con || 0),
+          normalizeNumber(r.existencia_deta || 0),
+          normalizeNumber(r.precio_sin_impu_1 || 0),
+          normalizeNumber(r.precio_sin_impu_2 || 0),
+          fechaVal
+        ];
         values.push(...params);
         const ph = `(${new Array(params.length).fill(0).map(() => `$${idx++}`).join(',')})`;
         placeholders.push(ph);
@@ -498,20 +547,23 @@ app.post('/api/inventario/import', async (req, res) => {
         // fallback to per-row insert/update
         if (ie && ie.code === '23505') {
           for (const r of chunk) {
-            const fechaVal = (function(s){
-              if (!s && s !== 0) return '';
-              let t = String(s).trim();
-              const m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-              if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
-              if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.split(' ')[0];
-              const parsed = Date.parse(t);
-              if (!Number.isNaN(parsed)) {
-                const d = new Date(parsed);
-                return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-              }
-              return '';
-            })(r.fecha_sistema || date);
-            const params = [r.codigo || null, r.descripcion || null, r.costo_anterior || 0, r.costo_actual || 0, r.costo_fob || 0, r.principal || 0, r.capacidad_con || 0, r.existencia_deta || 0, r.precio_sin_impu_1 || 0, r.precio_sin_impu_2 || 0, fechaVal];
+            // per-row fallback path: prefer provided date param, fallback to row fecha_sistema
+            let fechaVal = normalizeDateInv(date);
+            if (!fechaVal) fechaVal = normalizeDateInv(r.fecha_sistema);
+            if (!fechaVal) fechaVal = null;
+            const params = [
+              r.codigo || null,
+              r.descripcion || null,
+              normalizeNumber(r.costo_anterior || 0),
+              normalizeNumber(r.costo_actual || 0),
+              normalizeNumber(r.costo_fob || 0),
+              normalizeNumber(r.principal || 0),
+              normalizeNumber(r.capacidad_con || 0),
+              normalizeNumber(r.existencia_deta || 0),
+              normalizeNumber(r.precio_sin_impu_1 || 0),
+              normalizeNumber(r.precio_sin_impu_2 || 0),
+              fechaVal
+            ];
             try {
               await client.query(insertQ, params);
               inserted += 1;
