@@ -154,6 +154,25 @@ const getSessionFromReq = (req) => {
   }
 };
 
+// normalize date for inventario importer: accept yyyy-mm-dd, dd/mm/yyyy or other parseable strings
+const normalizeDateInv = (s) => {
+  if (s === null || s === undefined) return '';
+  let t = String(s).trim();
+  if (t.length === 0) return '';
+  // already yyyy-mm-dd or starts with date
+  if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.split(' ')[0];
+  // dd/mm/yyyy -> convert
+  const m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  // try Date.parse fallback
+  const parsed = Date.parse(t);
+  if (!Number.isNaN(parsed)) {
+    const d = new Date(parsed);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  return '';
+};
+
 app.get('/api/summary', async (req, res) => {
   const sess = getSessionFromReq(req);
   if (!sess) return res.status(401).json({ ok: false, error: 'no autorizado' });
