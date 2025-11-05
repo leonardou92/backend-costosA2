@@ -211,23 +211,22 @@ app.get('/api/summary', async (req, res) => {
   const client = poolClient();
   try {
     await client.connect();
-    // Compute ventas, costos and utilidad using costo_promedio per venta (LATERAL join to pick matching inventario_costos)
+    // Use the provided select logic to compute totals using the matching inventario_costos row
     const q = `
       SELECT
-        COALESCE(SUM( (COALESCE(v.fdi_preciodeventadcto,0)) * (COALESCE(v.fdi_cantidad,0)) ), 0) AS ventas,
+        COALESCE(SUM(COALESCE(v.fdi_preciodeventadcto,0) * COALESCE(v.fdi_cantidad,0)), 0) AS ventas,
         COALESCE(SUM(
-          CASE WHEN v.fdi_unddetallada <> TRUE
-            THEN (COALESCE(ici.costo_actual,0) * COALESCE(v.fdi_cantidad,0))
-            ELSE ((COALESCE(ici.costo_actual,0) / NULLIF(ici.capacidad_con,0)) * COALESCE(v.fdi_cantidad,0))
+          CASE
+            WHEN v.fdi_unddetallada <> TRUE
+              THEN COALESCE(ici.costo_actual,0) * COALESCE(v.fdi_cantidad,0)
+            ELSE (COALESCE(ici.costo_actual,0) / NULLIF(ici.capacidad_con,0)) * COALESCE(v.fdi_cantidad,0)
           END
         ), 0) AS costos
       FROM ventas v
-      LEFT JOIN LATERAL (
-        SELECT ic2.* FROM inventario_costos ic2
-        WHERE ic2.codigo = v.fdi_codigo AND ic2.fecha_sistema = v.fdi_fechaoperacion
-        LIMIT 1
-      ) ici ON true
-      WHERE EXTRACT(YEAR FROM v.fdi_fechaoperacion) = $1 AND EXTRACT(MONTH FROM v.fdi_fechaoperacion) = $2
+      LEFT JOIN inventario_costos ici
+        ON ici.codigo = v.fdi_codigo AND ici.fecha_sistema = v.fdi_fechaoperacion
+      WHERE EXTRACT(YEAR FROM v.fdi_fechaoperacion) = $1
+        AND EXTRACT(MONTH FROM v.fdi_fechaoperacion) = $2
     `;
     const r = await client.query(q, [year, month]);
     const ventas = Number(r.rows[0] && r.rows[0].ventas) || 0;
