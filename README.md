@@ -71,6 +71,8 @@ El servidor corre en `http://localhost:3001` por defecto.
 - `GET /api/health` - Verifica el estado del servidor
 - `GET /api/ping` - Respuesta simple de ping
 - `GET /api/dbtest` - Prueba de conexión a la base de datos
+- `POST /api/login` - Login con username/password, devuelve token JWT
+- `GET /api/inventario/reporte` - **Requiere token JWT** - Reporte de inventario de octubre 2025
 
 ## Despliegue
 

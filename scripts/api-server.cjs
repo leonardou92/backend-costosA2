@@ -72,6 +72,16 @@ const getSessionFromReq = (req) => {
   }
 };
 
+// Middleware para requerir autenticación JWT
+const requireAuth = (req, res, next) => {
+  const session = getSessionFromReq(req);
+  if (!session) {
+    return res.status(401).json({ ok: false, error: 'unauthorized', message: 'Token JWT requerido en header Authorization' });
+  }
+  req.session = session;
+  next();
+};
+
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, healthy: true, uptime: process.uptime(), env_database: !!DATABASE_URL, now: Date.now() });
 });
@@ -80,19 +90,17 @@ app.get('/api/ping', (req, res) => {
   res.json({ ok: true, uptime: process.uptime(), env_database: !!DATABASE_URL });
 });
 
-app.get('/api/dbtest', async (req, res) => {
-  if (!DATABASE_URL) return res.status(500).json({ ok: false, error: 'no_database_url' });
-  try {
-    const pool = getPool();
-    await pool.query('SELECT 1');
-    return res.json({ ok: true, message: 'db_reachable' });
-  } catch (err) {
-    console.error('dbtest connect error', err && err.message ? err.message : err);
-    return res.status(500).json({ ok: false, error: 'db_connect_failed', message: String(err && err.message ? err.message : 'connect_error') });
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body;
+  // Para demo: usuario fijo
+  if (username === 'admin' && password === 'admin') {
+    const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '24h' });
+    return res.json({ ok: true, token, message: 'Login exitoso' });
   }
+  return res.status(401).json({ ok: false, error: 'invalid_credentials', message: 'Usuario o contraseña incorrectos' });
 });
 
-app.get('/api/inventario/reporte', async (req, res) => {
+app.get('/api/inventario/reporte', requireAuth, async (req, res) => {
   if (!DATABASE_URL) return res.status(500).json({ ok: false, error: 'no_database_url' });
   try {
     const pool = getPool();
@@ -107,7 +115,8 @@ app.get('/api/inventario/reporte', async (req, res) => {
       ok: true, 
       reporte: 'inventario_octubre_2025', 
       total_registros: result.rows.length, 
-      data: result.rows 
+      data: result.rows,
+      usuario: req.session.username 
     });
   } catch (err) {
     console.error('inventario reporte error', err && err.message ? err.message : err);
